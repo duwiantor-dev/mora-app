@@ -47,9 +47,11 @@ def load_json(path: Path, default):
         return json.load(f)
 
 
+
 def save_json(path: Path, data):
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+
 
 
 def init_storage():
@@ -57,20 +59,25 @@ def init_storage():
     load_json(USERS_FILE, {})
 
 
+
 def get_quests():
     return load_json(QUESTS_FILE, DEFAULT_QUESTS)
+
 
 
 def save_quests(quests):
     save_json(QUESTS_FILE, quests)
 
 
+
 def get_users():
     return load_json(USERS_FILE, {})
 
 
+
 def save_users(users):
     save_json(USERS_FILE, users)
+
 
 
 def ensure_user(username: str, role: str):
@@ -89,11 +96,13 @@ def ensure_user(username: str, role: str):
     return users[username]
 
 
+
 def get_current_user():
     username = st.session_state.get('username')
     if not username:
         return None
     return get_users().get(username)
+
 
 
 def complete_quest(username: str, quest_id: str):
@@ -105,6 +114,7 @@ def complete_quest(username: str, quest_id: str):
         reward = next((q.get('reward_level', 1) for q in quests if q['id'] == quest_id), 1)
         user['level'] += reward
         save_users(users)
+
 
 
 def add_quest(title: str, description: str, difficulty: str, reward_level: int):
@@ -122,6 +132,7 @@ def add_quest(title: str, description: str, difficulty: str, reward_level: int):
     save_quests(quests)
 
 
+
 def inject_css():
     st.markdown(
         """
@@ -135,6 +146,8 @@ def inject_css():
             --line: rgba(255,255,255,0.12);
             --text: #f6f0dc;
             --muted: #d8d3c6;
+            --dark-card: rgba(29, 44, 65, 0.92);
+            --cream: rgba(255, 247, 229, 0.82);
         }
         .stApp {
             background:
@@ -144,16 +157,16 @@ def inject_css():
             color: var(--text);
         }
         .block-container {
-            max-width: 1380px;
-            padding-top: 1rem;
-            padding-bottom: 1rem;
+            max-width: 1400px;
+            padding-top: 2.3rem;
+            padding-bottom: 1.2rem;
         }
         div[data-testid="stSidebar"] {
             background: linear-gradient(180deg, rgba(31,45,60,0.98), rgba(63,85,98,0.96));
             border-right: 1px solid rgba(255,255,255,0.08);
         }
         div[data-testid="stSidebar"] .block-container {
-            padding-top: 1rem;
+            padding-top: 1.25rem;
             padding-left: .8rem;
             padding-right: .8rem;
         }
@@ -161,7 +174,8 @@ def inject_css():
             background: rgba(255,255,255,0.05);
             border: 1px solid rgba(255,255,255,0.08);
             border-radius: 28px;
-            padding: 18px;
+            padding: 28px 24px 22px 24px;
+            margin-top: .65rem;
             backdrop-filter: blur(6px);
             box-shadow: 0 20px 40px rgba(0,0,0,0.15);
         }
@@ -173,16 +187,24 @@ def inject_css():
         }
         .login-box { padding: 28px; max-width: 760px; margin: 2rem auto; }
         .panel { padding: 18px; }
-        .detail-card { padding: 22px; min-height: 560px; }
+        .detail-card { padding: 24px; min-height: 540px; background: rgba(20, 31, 46, 0.95); }
         .metric-card { padding: 16px; text-align: center; min-height: 120px; }
-        .quest-item { padding: 14px 18px; margin-bottom: 12px; background: rgba(29, 44, 65, 0.88); }
-        .quest-item.active { border: 2px solid rgba(230,204,141,0.75); background: rgba(255,247,229,0.78); color: #2b3951; }
-        .quest-item.active .muted, .quest-item.active .small-note { color: #53606f !important; }
-        .headline { font-size: 34px; font-weight: 800; color: var(--gold); line-height: 1.1; }
+        .quest-item { padding: 12px; margin-bottom: 12px; background: var(--dark-card); }
+        .quest-item.active {
+            border: 2px solid rgba(230,204,141,0.75);
+            background: var(--cream);
+            color: #2b3951;
+        }
+        .quest-item.active .muted,
+        .quest-item.active .small-note,
+        .quest-item.active .quest-meta {
+            color: #53606f !important;
+        }
+        .headline { font-size: 34px; font-weight: 800; color: var(--gold); line-height: 1.08; }
         .subheadline { font-size: 17px; color: var(--muted); }
         .section-title { font-size: 22px; font-weight: 800; color: var(--gold); margin-bottom: 8px; }
         .muted { color: var(--muted); }
-        .small-note { font-size: 13px; opacity: 0.85; }
+        .small-note { font-size: 13px; opacity: 0.88; }
         .reward-chip {
             display: inline-block;
             padding: 10px 14px;
@@ -209,14 +231,55 @@ def inject_css():
             border: 1px solid rgba(255,255,255,0.09);
             margin-bottom: 12px;
         }
+        .quest-button-gap { margin-bottom: .2rem; }
+        .quest-meta { color: var(--muted); }
+        .detail-divider {
+            height: 1px;
+            background: rgba(255,255,255,0.08);
+            margin: 16px 0;
+        }
+        .detail-description {
+            min-height: 180px;
+            padding: 16px;
+            border-radius: 18px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.06);
+            line-height: 1.7;
+            font-size: 17px;
+        }
+        .detail-hero {
+            min-height: 250px;
+            border-radius: 22px;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: linear-gradient(180deg, rgba(38,56,81,0.98), rgba(25,39,59,0.98));
+            margin-bottom: 18px;
+            display: flex;
+            align-items: flex-end;
+            padding: 18px;
+        }
+        .detail-hero-title { font-size: 30px; font-weight: 900; color: var(--gold); }
+        .detail-hero-sub { color: var(--muted); margin-top: 4px; }
         .stButton > button {
             width: 100%;
-            border-radius: 14px;
+            border-radius: 16px;
+            font-weight: 800;
+            min-height: 2.95rem;
+            box-shadow: none;
+        }
+        .stButton > button[kind="primary"],
+        .stFormSubmitButton > button[kind="primary"] {
             border: 1px solid rgba(255,255,255,0.10);
             background: linear-gradient(180deg, #efdfb1 0%, #d1b16d 100%);
             color: #28344a;
-            font-weight: 800;
-            min-height: 2.8rem;
+        }
+        .stButton > button[kind="secondary"],
+        .stFormSubmitButton > button[kind="secondary"] {
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(29, 44, 65, 0.01);
+            color: inherit;
+            text-align: left;
+            justify-content: flex-start;
+            padding-left: 0.6rem;
         }
         .stButton > button:hover { border-color: rgba(255,255,255,0.25); }
         div[data-baseweb="select"] > div,
@@ -225,9 +288,6 @@ def inject_css():
         .stNumberInput input {
             border-radius: 14px !important;
             background: rgba(255,255,255,0.92) !important;
-        }
-        .stRadio > div {
-            gap: .5rem;
         }
         .stProgress > div > div > div > div {
             background: linear-gradient(90deg, #f4e4b2, #d4b46a);
@@ -250,10 +310,11 @@ def inject_css():
     )
 
 
+
 def render_login():
     st.markdown('<div class="login-box">', unsafe_allow_html=True)
     st.markdown('<div class="headline">Task Quest App</div>', unsafe_allow_html=True)
-    st.markdown('<div class="subheadline">UI sudah dibikin lebih cinematic dan lebih dekat ke vibe quest game. Login sebagai GM atau Player untuk masuk.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="subheadline">Login sebagai GM atau Player untuk masuk ke task tracker bergaya quest game.</div>', unsafe_allow_html=True)
     st.write('')
 
     col1, col2 = st.columns([1.2, 1])
@@ -263,7 +324,7 @@ def render_login():
         role = st.selectbox('Login sebagai', ['Player', 'GM'])
 
     st.markdown('<div class="small-note">GM bisa tambah quest baru. Player fokus mengerjakan quest dan naik level.</div>', unsafe_allow_html=True)
-    if st.button('Masuk ke App'):
+    if st.button('Masuk ke App', type='primary'):
         if username.strip():
             user = ensure_user(username.strip(), role)
             st.session_state['username'] = user['username']
@@ -271,6 +332,7 @@ def render_login():
             st.rerun()
         st.error('Nama user wajib diisi.')
     st.markdown('</div>', unsafe_allow_html=True)
+
 
 
 def render_sidebar(user):
@@ -298,10 +360,11 @@ def render_sidebar(user):
     chosen = st.sidebar.radio('Menu', labels, index=labels.index(current), label_visibility='collapsed')
     st.session_state['selected_menu'] = reverse[chosen]
 
-    st.sidebar.markdown('<div class="sidebar-card"><div class="menu-caption">5 menu kiri sudah disesuaikan dengan brief. Quest done akan hilang dari menu quest dan pindah ke history.</div></div>', unsafe_allow_html=True)
-    if st.sidebar.button('Logout'):
+    st.sidebar.markdown('<div class="sidebar-card"><div class="menu-caption">Quest selesai akan hilang dari daftar quest dan pindah ke history quest.</div></div>', unsafe_allow_html=True)
+    if st.sidebar.button('Logout', type='primary'):
         st.session_state.clear()
         st.rerun()
+
 
 
 def render_summary(user, quests):
@@ -340,7 +403,7 @@ def render_summary(user, quests):
         st.markdown('<div class="panel">', unsafe_allow_html=True)
         st.markdown('<div class="section-title">Progress Level</div>', unsafe_allow_html=True)
         st.progress(progress_to_next if progress_to_next > 0 else 0.02)
-        st.markdown(f'<div class="small-note">Setiap 1 quest selesai akan menambah level sesuai reward. Progress bar ini contoh progress menuju milestone setiap 5 level.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="small-note">Setiap 1 quest selesai akan menambah level sesuai reward.</div>', unsafe_allow_html=True)
         st.write('')
         st.markdown('<div class="section-title">Recent Activity</div>', unsafe_allow_html=True)
         if done:
@@ -351,7 +414,10 @@ def render_summary(user, quests):
         st.markdown('</div>', unsafe_allow_html=True)
     with right:
         st.markdown('<div class="detail-card">', unsafe_allow_html=True)
-        st.markdown('<div class="section-title">Quick Notes</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-title">Status Player</div>', unsafe_allow_html=True)
+        st.markdown(f'<span class="reward-chip">Role: {user["role"]}</span><span class="reward-chip">Joined: {user["created_at"][:10]}</span>', unsafe_allow_html=True)
+        st.write('')
+        st.markdown('<div class="section-title">Ringkasan</div>', unsafe_allow_html=True)
         st.markdown(
             '<div class="small-note">'
             'Menu 1 berisi summary performa.<br>'
@@ -362,14 +428,9 @@ def render_summary(user, quests):
             '</div>',
             unsafe_allow_html=True,
         )
-        st.write('')
-        st.markdown('<div class="section-title">Status Player</div>', unsafe_allow_html=True)
-        st.markdown(f'<span class="reward-chip">Role: {user["role"]}</span><span class="reward-chip">Joined: {user["created_at"][:10]}</span>', unsafe_allow_html=True)
-        st.write('')
-        st.markdown('<div class="section-title">Tips</div>', unsafe_allow_html=True)
-        st.markdown('<div class="small-note">Pilih quest aktif, tandai selesai, dan level akan naik otomatis.</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
+
 
 
 def render_quests(user, quests):
@@ -378,7 +439,7 @@ def render_quests(user, quests):
 
     st.markdown('<div class="app-shell">', unsafe_allow_html=True)
     st.markdown('<div class="headline">Daftar Quest</div>', unsafe_allow_html=True)
-    st.markdown('<div class="subheadline">Panel kiri berisi list quest. Panel kanan berisi detail deskripsi tugas dan reward level.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="subheadline">Klik nama quest di panel kiri. Detail deskripsi tugas sekarang tampil di kotak hitam besar sebelah kanan.</div>', unsafe_allow_html=True)
     st.write('')
 
     if not active_quests:
@@ -390,34 +451,39 @@ def render_quests(user, quests):
     if st.session_state.get('selected_quest_id') not in valid_ids:
         st.session_state['selected_quest_id'] = active_quests[0]['id']
 
-    left, right = st.columns([1.05, 1.55])
+    left, right = st.columns([1.02, 1.58], gap='large')
     with left:
         st.markdown('<div class="panel">', unsafe_allow_html=True)
         st.markdown('<div class="section-title">Archon Quests</div>', unsafe_allow_html=True)
         for q in active_quests:
             active_class = ' active' if q['id'] == st.session_state['selected_quest_id'] else ''
-            st.markdown(
-                f'<div class="quest-item{active_class}">'
-                f'<div style="font-size:18px;font-weight:800;">{q["title"]}</div>'
-                f'<div class="muted">Reward +{q.get("reward_level", 1)} level</div>'
-                f'<div class="small-note">Difficulty: {q.get("difficulty", "Normal")}</div>'
-                f'</div>',
-                unsafe_allow_html=True,
-            )
-            if st.button(f'Pilih {q["id"]}', key=f'select_{q["id"]}'):
+            st.markdown(f'<div class="quest-item{active_class}">', unsafe_allow_html=True)
+            if st.button(q['title'], key=f'select_{q["id"]}', use_container_width=True, type='secondary'):
                 st.session_state['selected_quest_id'] = q['id']
                 st.rerun()
+            st.markdown(
+                f'<div class="quest-meta">Reward +{q.get("reward_level", 1)} level</div>'
+                f'<div class="small-note">Difficulty: {q.get("difficulty", "Normal")} · ID {q["id"]}</div>',
+                unsafe_allow_html=True,
+            )
+            st.markdown('</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
     selected = next(q for q in active_quests if q['id'] == st.session_state['selected_quest_id'])
     with right:
         st.markdown('<div class="detail-card">', unsafe_allow_html=True)
-        st.markdown(f'<div class="headline" style="font-size:28px;">{selected["title"]}</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="subheadline">Starfell Valley, Mondstadt vibes · ID {selected["id"]}</div>', unsafe_allow_html=True)
-        st.write('')
+        st.markdown(
+            f'<div class="detail-hero">'
+            f'<div>'
+            f'<div class="detail-hero-title">{selected["title"]}</div>'
+            f'<div class="detail-hero-sub">Quest aktif · ID {selected["id"]} · Reward +{selected.get("reward_level", 1)} level</div>'
+            f'</div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
         st.markdown('<div class="section-title">Deskripsi Tugas</div>', unsafe_allow_html=True)
-        st.markdown(selected['description'])
-        st.write('')
+        st.markdown(f'<div class="detail-description">{selected["description"]}</div>', unsafe_allow_html=True)
+        st.markdown('<div class="detail-divider"></div>', unsafe_allow_html=True)
         st.markdown('<div class="section-title">Reward Quest</div>', unsafe_allow_html=True)
         st.markdown(
             f'<span class="reward-chip">+{selected.get("reward_level", 1)} Level</span>'
@@ -427,7 +493,7 @@ def render_quests(user, quests):
         )
         st.write('')
         st.info('Kerjain 1 tugas = naik level. Setelah selesai, quest akan pindah ke History Quest.')
-        if st.button('Tandai Quest Selesai', key='complete_selected'):
+        if st.button('Tandai Quest Selesai', key='complete_selected', type='primary'):
             complete_quest(user['username'], selected['id'])
             st.success(f'Quest {selected["title"]} selesai. Level bertambah.')
             st.rerun()
@@ -436,12 +502,14 @@ def render_quests(user, quests):
     st.markdown('</div>', unsafe_allow_html=True)
 
 
+
 def render_violation():
     st.markdown('<div class="app-shell">', unsafe_allow_html=True)
     st.markdown('<div class="headline">Violation</div>', unsafe_allow_html=True)
     st.markdown('<div class="detail-card" style="display:flex;align-items:center;justify-content:center;text-align:center;">', unsafe_allow_html=True)
     st.markdown('<div><div style="font-size:56px;">⚠</div><div class="headline" style="font-size:30px;">COMING SOON</div><div class="subheadline">Bagian violation belum kita bahas. Nanti bisa diisi aturan, poin pelanggaran, dan konsekuensi.</div></div>', unsafe_allow_html=True)
     st.markdown('</div></div>', unsafe_allow_html=True)
+
 
 
 def render_history(user, quests):
@@ -468,6 +536,7 @@ def render_history(user, quests):
     st.markdown('</div>', unsafe_allow_html=True)
 
 
+
 def render_dashboard(user):
     st.markdown('<div class="app-shell">', unsafe_allow_html=True)
     st.markdown('<div class="headline">Dashboard Tambah Quest</div>', unsafe_allow_html=True)
@@ -488,7 +557,7 @@ def render_dashboard(user):
             difficulty = st.selectbox('Difficulty', ['Easy', 'Normal', 'Hard'])
         with c2:
             reward_level = st.number_input('Reward level', min_value=1, max_value=10, value=1, step=1)
-        submitted = st.form_submit_button('Tambah Quest Baru')
+        submitted = st.form_submit_button('Tambah Quest Baru', type='primary')
 
     if submitted:
         if title.strip() and description.strip():
@@ -497,6 +566,7 @@ def render_dashboard(user):
         else:
             st.error('Judul dan deskripsi wajib diisi.')
     st.markdown('</div></div>', unsafe_allow_html=True)
+
 
 
 def main():
