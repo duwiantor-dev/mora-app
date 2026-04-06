@@ -1,13 +1,18 @@
+import os
 import streamlit as st
 from supabase import create_client
 import pandas as pd
 from datetime import datetime
 
 # =====================
-# CONFIG
+# CONFIG (ENV)
 # =====================
-SUPABASE_URL = "PASTE_URL"
-SUPABASE_KEY = "PASTE_KEY"
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    st.error("SUPABASE ENV belum di-set di Secrets")
+    st.stop()
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -28,10 +33,6 @@ body {
     border-radius: 20px;
     margin-bottom: 20px;
 }
-.button {
-    background: gold;
-    color: black;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -42,6 +43,21 @@ if "role" not in st.session_state:
     st.session_state.role = None
 if "user" not in st.session_state:
     st.session_state.user = None
+
+# =====================
+# FUNCTIONS
+# =====================
+def get_bts():
+    res = supabase.table("bts").select("*").execute()
+    return pd.DataFrame(res.data)
+
+def get_quests():
+    res = supabase.table("quests").select("*").execute()
+    return pd.DataFrame(res.data)
+
+def get_progress(name):
+    res = supabase.table("progress").select("*").eq("bts_name", name).execute()
+    return pd.DataFrame(res.data)
 
 # =====================
 # LOGIN
@@ -55,7 +71,6 @@ if st.session_state.role is None:
         name = st.text_input("Nama BTS")
         if st.button("Login sebagai BTS"):
             if name:
-                # insert kalau belum ada
                 supabase.table("bts").upsert({"name": name}).execute()
                 st.session_state.role = "BTS"
                 st.session_state.user = name
@@ -82,24 +97,9 @@ else:
     ])
 
 # =====================
-# FUNCTIONS
-# =====================
-def get_progress(name):
-    res = supabase.table("progress").select("*").eq("bts_name", name).execute()
-    return pd.DataFrame(res.data)
-
-def get_quests():
-    res = supabase.table("quests").select("*").execute()
-    return pd.DataFrame(res.data)
-
-def get_bts():
-    res = supabase.table("bts").select("*").execute()
-    return pd.DataFrame(res.data)
-
-# =====================
 # SUMMARY
 # =====================
-if menu == "Summary":
+if st.session_state.role == "BTS" and menu == "Summary":
     st.title("Summary Performa")
 
     df = get_progress(st.session_state.user)
@@ -117,12 +117,12 @@ if menu == "Summary":
     col3.metric("Belum", pending)
     col4.metric("Persen", f"{percent}%")
 
-    st.markdown(f"### Level: {level}")
+    st.markdown(f"## Level {level}")
 
 # =====================
 # QUEST (BTS)
 # =====================
-if menu == "Quest":
+if st.session_state.role == "BTS" and menu == "Quest":
     st.title("Quest")
 
     quests = get_quests()
@@ -145,19 +145,23 @@ if menu == "Quest":
                     "status": "done",
                     "completed_at": str(datetime.now())
                 }).execute()
+
                 st.success("Quest selesai!")
                 st.rerun()
 
 # =====================
 # HISTORY
 # =====================
-if menu == "History":
+if st.session_state.role == "BTS" and menu == "History":
     st.title("History Quest")
 
     df = get_progress(st.session_state.user)
-    df = df[df["status"] == "done"]
 
-    st.dataframe(df)
+    if not df.empty:
+        df = df[df["status"] == "done"]
+        st.dataframe(df)
+    else:
+        st.info("Belum ada history")
 
 # =====================
 # VIOLATION
@@ -169,7 +173,7 @@ if menu == "Violation":
 # =====================
 # DASHBOARD MGR
 # =====================
-if menu == "Dashboard MGR" and st.session_state.role == "MGR":
+if st.session_state.role == "MGR" and menu == "Dashboard MGR":
 
     st.title("Dashboard MGR")
 
@@ -179,7 +183,9 @@ if menu == "Dashboard MGR" and st.session_state.role == "MGR":
     title = st.text_input("Judul")
     desc = st.text_area("Deskripsi")
     diff = st.selectbox("Difficulty", ["Easy", "Medium", "Hard"])
-    target = st.selectbox("Target", ["all"] + list(get_bts()["name"]))
+
+    bts_list = get_bts()
+    target = st.selectbox("Target", ["all"] + list(bts_list["name"]) if not bts_list.empty else ["all"])
 
     if st.button("Buat Quest"):
         supabase.table("quests").insert({
@@ -190,17 +196,16 @@ if menu == "Dashboard MGR" and st.session_state.role == "MGR":
             "target": target
         }).execute()
 
-        st.success("Quest dibuat!")
+        st.success("Quest berhasil dibuat!")
+        st.rerun()
 
     st.divider()
 
     # EDIT BTS NAME
     st.subheader("Edit Nama BTS")
 
-    bts = get_bts()
-
-    if len(bts) > 0:
-        selected = st.selectbox("Pilih BTS", bts["name"])
+    if not bts_list.empty:
+        selected = st.selectbox("Pilih BTS", bts_list["name"])
         new_name = st.text_input("Nama Baru")
 
         if st.button("Update Nama"):
@@ -208,5 +213,29 @@ if menu == "Dashboard MGR" and st.session_state.role == "MGR":
                 "name": new_name
             }).eq("name", selected).execute()
 
-            st.success("Updated!")
+            st.success("Nama berhasil diupdate!")
             st.rerun()
+    else:
+        st.info("Belum ada BTS")
+
+    st.divider()
+
+    # SUMMARY ALL BTS
+    st.subheader("Summary Semua BTS")
+
+    if not bts_list.empty:
+        for _, b in bts_list.iterrows():
+            df = get_progress(b["name"])
+
+            total = len(df)
+            done = len(df[df["status"] == "done"])
+            percent = int((done / total)*100) if total > 0 else 0
+            level = done // 5 + 1
+
+            st.markdown(f"""
+            <div class="card">
+            <h4>{b['name']}</h4>
+            <p>Quest: {total} | Selesai: {done}</p>
+            <p>Level: {level} | {percent}%</p>
+            </div>
+            """, unsafe_allow_html=True)
