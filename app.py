@@ -1,620 +1,323 @@
+import json
+import math
 import os
-from datetime import datetime
+from datetime import date, datetime
+from typing import Dict, List
 
 import pandas as pd
 import streamlit as st
-from supabase import create_client
+
+APP_NAME = "MORA = Monitor Online Agres"
+DATA_FILE = "mora_data.json"
+ADMIN_PASSWORD = "admin123"
+DEFAULT_PICS = ["JEJEN", "OLA", "JUMIO"]
+DEFAULT_QUESTS = [
+    {"title": "update BIGSELLER", "description": "Update data dan pastikan sinkron.", "quest_date": str(date.today()), "assigned_to": ["JEJEN"]},
+    {"title": "sanggah pelanggaran", "description": "Ajukan sanggahan untuk pelanggaran yang valid.", "quest_date": str(date.today()), "assigned_to": ["OLA"]},
+    {"title": "cek merek brand", "description": "Periksa status merek brand terbaru.", "quest_date": str(date.today()), "assigned_to": ["JUMIO"]},
+    {"title": "cek badge", "description": "Cek badge dan catat histori naik/turun.", "quest_date": str(date.today()), "assigned_to": ["JEJEN", "OLA", "JUMIO"]},
+    {"title": "cek rating", "description": "Cek rating dan catat histori naik/turun.", "quest_date": str(date.today()), "assigned_to": ["JEJEN", "OLA", "JUMIO"]},
+    {"title": "cek violation", "description": "Cek violation dan catat histori naik/turun.", "quest_date": str(date.today()), "assigned_to": ["JEJEN", "OLA", "JUMIO"]},
+]
 
 
-# =====================
-# PAGE CONFIG
-# =====================
-st.set_page_config(
-    page_title="Mora App",
-    page_icon="⚔️",
-    layout="wide",
-)
+def load_data() -> Dict:
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
 
-# =====================
-# CONFIG (SECRETS / ENV)
-# =====================
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+    quests = []
+    for idx, q in enumerate(DEFAULT_QUESTS, start=1):
+        quests.append(
+            {
+                "id": idx,
+                "title": q["title"],
+                "description": q["description"],
+                "quest_date": q["quest_date"],
+                "created_at": datetime.now().isoformat(timespec="seconds"),
+                "created_by": "ADMIN",
+                "assigned_to": q["assigned_to"],
+                "status": {pic: "Belum dikerjakan" for pic in q["assigned_to"]},
+                "proof_links": {pic: "" for pic in q["assigned_to"]},
+                "completed_at": {pic: "" for pic in q["assigned_to"]},
+            }
+        )
 
-if not SUPABASE_URL or not SUPABASE_KEY:
-    st.error("SUPABASE_URL atau SUPABASE_KEY belum terbaca dari Streamlit Secrets.")
-    st.stop()
-
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-
-# =====================
-# STYLE
-# =====================
-st.markdown(
-    """
-    <style>
-        .stApp {
-            background: linear-gradient(135deg, #071120 0%, #0c1830 45%, #13233b 100%);
-            color: white;
-        }
-
-        .block-container {
-            padding-top: 2rem;
-            padding-bottom: 2rem;
-        }
-
-        .mora-title {
-            font-size: 48px;
-            font-weight: 800;
-            margin-bottom: 8px;
-            color: #f8fafc;
-        }
-
-        .mora-subtitle {
-            color: #b8c1d1;
-            margin-bottom: 20px;
-        }
-
-        .card {
-            background: rgba(255, 255, 255, 0.06);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 22px;
-            padding: 20px;
-            margin-bottom: 16px;
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
-        }
-
-        .quest-title {
-            font-size: 28px;
-            font-weight: 800;
-            color: #f8fafc;
-            margin-bottom: 8px;
-        }
-
-        .soft-text {
-            color: #cbd5e1;
-        }
-
-        .badge {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 999px;
-            font-size: 12px;
-            font-weight: 700;
-            margin-top: 8px;
-            margin-bottom: 8px;
-        }
-
-        .badge-easy {
-            background: rgba(80, 200, 120, 0.18);
-            color: #9af0b5;
-            border: 1px solid rgba(80, 200, 120, 0.24);
-        }
-
-        .badge-medium {
-            background: rgba(240, 200, 90, 0.18);
-            color: #f8de8a;
-            border: 1px solid rgba(240, 200, 90, 0.24);
-        }
-
-        .badge-hard {
-            background: rgba(220, 80, 120, 0.18);
-            color: #ff9ab9;
-            border: 1px solid rgba(220, 80, 120, 0.24);
-        }
-
-        .metric-card {
-            background: rgba(255, 255, 255, 0.06);
-            border-radius: 20px;
-            padding: 18px;
-            border: 1px solid rgba(255,255,255,0.07);
-        }
-
-        .section-title {
-            font-size: 34px;
-            font-weight: 800;
-            margin-bottom: 12px;
-        }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+    data = {
+        "pics": [
+            {"name": pic, "exp": 0, "level": 1, "completed_quests": 0}
+            for pic in DEFAULT_PICS
+        ],
+        "quests": quests,
+        "next_quest_id": len(quests) + 1,
+    }
+    save_data(data)
+    return data
 
 
-# =====================
-# SESSION STATE
-# =====================
-if "role" not in st.session_state:
-    st.session_state.role = None
 
-if "user" not in st.session_state:
-    st.session_state.user = None
-
-if "selected_quest_id" not in st.session_state:
-    st.session_state.selected_quest_id = None
+def save_data(data: Dict):
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-# =====================
-# HELPERS
-# =====================
-def difficulty_badge(diff: str) -> str:
-    diff_lower = (diff or "").lower()
 
-    if diff_lower == "easy":
-        return '<span class="badge badge-easy">Easy</span>'
-    if diff_lower == "medium":
-        return '<span class="badge badge-medium">Medium</span>'
-    if diff_lower == "hard":
-        return '<span class="badge badge-hard">Hard</span>'
-    return f'<span class="badge">{diff}</span>'
+def get_pic(data: Dict, name: str) -> Dict:
+    for pic in data["pics"]:
+        if pic["name"] == name:
+            return pic
+    raise ValueError(f"PIC tidak ditemukan: {name}")
 
 
-def calculate_level(done_count: int) -> int:
-    return (done_count // 5) + 1
+
+def award_exp(pic: Dict, exp_gain: int = 100):
+    current_total = max((pic["level"] - 1) * 100, 0) + pic["exp"]
+    new_total = current_total + exp_gain
+    pic["level"] = max(1, new_total // 100 + 1)
+    pic["exp"] = new_total % 100
+    pic["completed_quests"] += 1
 
 
-def safe_df(data) -> pd.DataFrame:
-    if not data:
-        return pd.DataFrame()
-    return pd.DataFrame(data)
+
+def completion_percent(total: int, done: int) -> float:
+    if total == 0:
+        return 0.0
+    return round((done / total) * 100, 1)
 
 
-def get_bts() -> pd.DataFrame:
-    res = supabase.table("bts").select("*").order("created_at").execute()
-    return safe_df(res.data)
+
+def build_performance_df(data: Dict) -> pd.DataFrame:
+    rows: List[Dict] = []
+    for pic in data["pics"]:
+        assigned = 0
+        done = 0
+        pending_titles = []
+        for quest in data["quests"]:
+            if pic["name"] in quest["assigned_to"]:
+                assigned += 1
+                if quest["status"].get(pic["name"]) == "Selesai":
+                    done += 1
+                else:
+                    pending_titles.append(quest["title"])
+        rows.append(
+            {
+                "PIC": pic["name"],
+                "Assigned Quest": assigned,
+                "Selesai": done,
+                "Belum Selesai": max(assigned - done, 0),
+                "Completion %": completion_percent(assigned, done),
+                "Level": pic["level"],
+                "EXP Saat Ini": pic["exp"],
+                "Daftar Pending": ", ".join(pending_titles) if pending_titles else "-",
+            }
+        )
+    return pd.DataFrame(rows)
 
 
-def get_quests() -> pd.DataFrame:
-    res = supabase.table("quests").select("*").order("created_at", desc=True).execute()
-    return safe_df(res.data)
+
+def get_notifications(data: Dict, pic_name: str = None) -> List[str]:
+    notifications = []
+    today = str(date.today())
+    for quest in sorted(data["quests"], key=lambda x: x["quest_date"], reverse=True):
+        targets = quest["assigned_to"]
+        is_new = quest["quest_date"] >= today
+        if pic_name:
+            if pic_name not in targets:
+                continue
+            status = quest["status"].get(pic_name, "Belum dikerjakan")
+            if is_new:
+                notifications.append(f"Quest baru: {quest['title']}")
+            if status != "Selesai":
+                notifications.append(f"Belum dikerjakan: {quest['title']}")
+        else:
+            open_count = sum(1 for p in targets if quest["status"].get(p) != "Selesai")
+            if is_new:
+                notifications.append(f"Quest baru dibuat: {quest['title']}")
+            if open_count > 0:
+                notifications.append(f"{quest['title']} masih pending untuk {open_count} PIC")
+    seen = set()
+    unique = []
+    for item in notifications:
+        if item not in seen:
+            unique.append(item)
+            seen.add(item)
+    return unique[:20]
 
 
-def get_progress_by_bts(bts_name: str) -> pd.DataFrame:
-    res = (
-        supabase.table("progress")
-        .select("*")
-        .eq("bts_name", bts_name)
-        .order("completed_at", desc=True)
-        .execute()
-    )
-    return safe_df(res.data)
+
+def render_notifications(data: Dict, pic_name: str = None):
+    st.subheader("Notifikasi Quest")
+    notifications = get_notifications(data, pic_name)
+    if not notifications:
+        st.success("Tidak ada notifikasi. Semua aman.")
+        return
+    for note in notifications:
+        st.info(note)
 
 
-def get_done_quest_ids_for_bts(bts_name: str) -> set:
-    df = get_progress_by_bts(bts_name)
-    if df.empty:
-        return set()
 
-    done_df = df[df["status"] == "done"] if "status" in df.columns else pd.DataFrame()
-    if done_df.empty or "quest_id" not in done_df.columns:
-        return set()
+def admin_view(data: Dict):
+    st.header("Panel Admin")
+    render_notifications(data)
 
-    return set(done_df["quest_id"].astype(str).tolist())
+    st.subheader("Tambah Quest Baru")
+    with st.form("add_quest_form", clear_on_submit=True):
+        title = st.text_input("Judul Quest")
+        description = st.text_area("Deskripsi Quest")
+        quest_date = st.date_input("Tanggal Quest", value=date.today())
+        selected_pics = st.multiselect("Assign ke PIC", DEFAULT_PICS, default=DEFAULT_PICS)
+        submitted = st.form_submit_button("Tambah Quest")
+
+        if submitted:
+            if not title.strip() or not description.strip() or not selected_pics:
+                st.error("Judul, deskripsi, dan PIC wajib diisi.")
+            else:
+                new_quest = {
+                    "id": data["next_quest_id"],
+                    "title": title.strip(),
+                    "description": description.strip(),
+                    "quest_date": str(quest_date),
+                    "created_at": datetime.now().isoformat(timespec="seconds"),
+                    "created_by": "ADMIN",
+                    "assigned_to": selected_pics,
+                    "status": {pic: "Belum dikerjakan" for pic in selected_pics},
+                    "proof_links": {pic: "" for pic in selected_pics},
+                    "completed_at": {pic: "" for pic in selected_pics},
+                }
+                data["quests"].append(new_quest)
+                data["next_quest_id"] += 1
+                save_data(data)
+                st.success("Quest berhasil ditambahkan.")
+                st.rerun()
+
+    st.subheader("Ringkasan Performa PIC")
+    perf_df = build_performance_df(data)
+    st.dataframe(perf_df, use_container_width=True)
+    st.bar_chart(perf_df.set_index("PIC")[["Selesai", "Belum Selesai"]])
+
+    st.subheader("Daftar Semua Quest")
+    all_rows = []
+    for quest in sorted(data["quests"], key=lambda x: (x["quest_date"], x["id"]), reverse=True):
+        all_rows.append(
+            {
+                "ID": quest["id"],
+                "Judul": quest["title"],
+                "Deskripsi": quest["description"],
+                "Tanggal Quest": quest["quest_date"],
+                "Assigned": ", ".join(quest["assigned_to"]),
+                "Status Ringkas": "; ".join([f"{k}: {v}" for k, v in quest["status"].items()]),
+            }
+        )
+    st.dataframe(pd.DataFrame(all_rows), use_container_width=True)
 
 
-def get_available_quests_for_bts(bts_name: str) -> pd.DataFrame:
-    quests_df = get_quests()
-    if quests_df.empty:
-        return pd.DataFrame()
 
-    visible_df = quests_df[
-        (quests_df["target"] == "all") | (quests_df["target"] == bts_name)
-    ].copy()
+def pic_view(data: Dict, pic_name: str):
+    st.header(f"Dashboard PIC - {pic_name}")
+    pic = get_pic(data, pic_name)
 
-    done_ids = get_done_quest_ids_for_bts(bts_name)
-    if done_ids:
-        visible_df = visible_df[~visible_df["id"].astype(str).isin(done_ids)]
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Level", pic["level"])
+    c2.metric("EXP", f"{pic['exp']}/100")
+    c3.metric("Quest Selesai", pic["completed_quests"])
 
-    return visible_df
+    render_notifications(data, pic_name)
 
-
-def create_bts_if_not_exists(name: str) -> None:
-    existing = supabase.table("bts").select("name").eq("name", name).execute()
-    if not existing.data:
-        supabase.table("bts").insert({"name": name}).execute()
-
-
-def mark_quest_done(bts_name: str, quest_id: str) -> None:
-    existing = (
-        supabase.table("progress")
-        .select("*")
-        .eq("bts_name", bts_name)
-        .eq("quest_id", quest_id)
-        .eq("status", "done")
-        .execute()
-    )
-
-    if existing.data:
+    st.subheader("Quest Saya")
+    my_quests = [q for q in data["quests"] if pic_name in q["assigned_to"]]
+    if not my_quests:
+        st.warning("Belum ada quest untuk PIC ini.")
         return
 
-    supabase.table("progress").insert(
-        {
-            "bts_name": bts_name,
-            "quest_id": quest_id,
-            "status": "done",
-            "completed_at": datetime.utcnow().isoformat(),
-        }
-    ).execute()
-
-
-def rename_bts(old_name: str, new_name: str) -> None:
-    new_name = new_name.strip()
-    if not new_name:
-        raise ValueError("Nama baru tidak boleh kosong.")
-
-    # cek unique
-    exists = supabase.table("bts").select("name").eq("name", new_name).execute()
-    if exists.data:
-        raise ValueError("Nama BTS sudah dipakai.")
-
-    supabase.table("bts").update({"name": new_name}).eq("name", old_name).execute()
-    supabase.table("progress").update({"bts_name": new_name}).eq("bts_name", old_name).execute()
-
-
-# =====================
-# LOGIN PAGE
-# =====================
-if st.session_state.role is None:
-    st.markdown('<div class="mora-title">⚔️ Mora App</div>', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="mora-subtitle">Login sebagai BTS atau MGR</div>',
-        unsafe_allow_html=True,
-    )
-
-    left, right = st.columns([1.4, 1])
-
-    with left:
-        name = st.text_input("Nama BTS")
-
-        if st.button("Login sebagai BTS", use_container_width=False):
-            clean_name = name.strip()
-            if not clean_name:
-                st.warning("Masukkan nama BTS dulu.")
-            else:
-                try:
-                    create_bts_if_not_exists(clean_name)
-                    st.session_state.role = "BTS"
-                    st.session_state.user = clean_name
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Gagal login BTS: {e}")
-
-    with right:
-        st.write("")
-        st.write("")
-        if st.button("Login sebagai MGR", use_container_width=False):
-            st.session_state.role = "MGR"
-            st.session_state.user = "MGR"
-            st.rerun()
-
-    st.stop()
-
-
-# =====================
-# SIDEBAR
-# =====================
-with st.sidebar:
-    st.title("Mora App")
-    st.caption(f"Role: {st.session_state.role}")
-    if st.session_state.user:
-        st.write(f"User: **{st.session_state.user}**")
-
-    if st.session_state.role == "BTS":
-        menu = st.radio(
-            "Menu",
-            ["Summary", "Quest", "History", "Violation"],
-        )
-    else:
-        menu = st.radio(
-            "Menu",
-            ["Dashboard MGR", "Violation"],
-        )
-
-    st.divider()
-
-    if st.button("Logout", use_container_width=True):
-        st.session_state.role = None
-        st.session_state.user = None
-        st.session_state.selected_quest_id = None
-        st.rerun()
-
-
-# =====================
-# BTS - SUMMARY
-# =====================
-if st.session_state.role == "BTS" and menu == "Summary":
-    st.markdown('<div class="section-title">Summary Performa</div>', unsafe_allow_html=True)
-
-    progress_df = get_progress_by_bts(st.session_state.user)
-    total = len(progress_df)
-    done = len(progress_df[progress_df["status"] == "done"]) if not progress_df.empty else 0
-    pending = max(total - done, 0)
-    percent = int((done / total) * 100) if total > 0 else 0
-    level = calculate_level(done)
-
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Quest Diberikan", total)
-    c2.metric("Quest Selesai", done)
-    c3.metric("Belum Selesai", pending)
-    c4.metric("Persentase", f"{percent}%")
-
-    st.markdown(f"### Level Saat Ini: {level}")
-
-    st.progress(percent / 100 if percent > 0 else 0)
-
-
-# =====================
-# BTS - QUEST
-# =====================
-elif st.session_state.role == "BTS" and menu == "Quest":
-    st.markdown('<div class="section-title">Archon Quests</div>', unsafe_allow_html=True)
-
-    quests_df = get_available_quests_for_bts(st.session_state.user)
-
-    if quests_df.empty:
-        st.info("Belum ada quest aktif.")
-    else:
-        col_left, col_right = st.columns([1.05, 1.45])
-
-        with col_left:
-            st.subheader("Daftar Quest")
-
-            for _, row in quests_df.iterrows():
-                quest_id = str(row["id"])
-                title = row.get("title", "-")
-                description = row.get("description", "-")
-                difficulty = row.get("difficulty", "-")
-
-                with st.container():
-                    st.markdown(
-                        f"""
-                        <div class="card">
-                            <div class="quest-title">{title}</div>
-                            <div class="soft-text">{description}</div>
-                            {difficulty_badge(difficulty)}
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-
-                    if st.button(f"Pilih: {title}", key=f"pick_{quest_id}"):
-                        st.session_state.selected_quest_id = quest_id
-                        st.rerun()
-
-        with col_right:
-            selected_df = quests_df.copy()
-
-            if st.session_state.selected_quest_id:
-                selected_df = selected_df[
-                    selected_df["id"].astype(str) == st.session_state.selected_quest_id
-                ]
-
-            if selected_df.empty:
-                selected_df = quests_df.head(1)
-
-            selected = selected_df.iloc[0]
-
-            st.markdown(
-                f"""
-                <div class="card">
-                    <div class="section-title" style="margin-bottom:6px;">{selected.get("title", "-")}</div>
-                    <div style="font-size:20px; color:#f6d86d; margin-bottom:16px;">
-                        Task Area · Operational Board
-                    </div>
-
-                    <div class="card" style="margin-top:10px;">
-                        <h3>Deskripsi Tugas</h3>
-                        <div style="font-size:20px; line-height:1.7;">
-                            {selected.get("description", "-")}
-                        </div>
-                        <div style="margin-top:12px;">
-                            {difficulty_badge(selected.get("difficulty", "-"))}
-                        </div>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
+    for quest in sorted(my_quests, key=lambda x: (x["quest_date"], x["id"]), reverse=True):
+        status = quest["status"].get(pic_name, "Belum dikerjakan")
+        with st.expander(f"[{status}] {quest['title']} - {quest['quest_date']}"):
+            st.write(f"**Deskripsi:** {quest['description']}")
+            st.write(f"**Status saat ini:** {status}")
+            existing_proof = quest["proof_links"].get(pic_name, "")
+            if existing_proof:
+                st.markdown(f"**Proof:** [Lihat screenshot]({existing_proof})")
+            new_status = st.selectbox(
+                f"Update status #{quest['id']}",
+                ["Belum dikerjakan", "Sedang dikerjakan", "Selesai"],
+                index=["Belum dikerjakan", "Sedang dikerjakan", "Selesai"].index(status),
+                key=f"status_{quest['id']}_{pic_name}",
             )
-
-            done_count = len(get_done_quest_ids_for_bts(st.session_state.user))
-            next_level = calculate_level(done_count + 1)
-
-            c1, c2 = st.columns([1, 1.3])
-            with c1:
-                st.markdown(
-                    f"""
-                    <div class="card">
-                        <div class="soft-text">Reward</div>
-                        <div style="font-size:18px;">+1 Quest Selesai</div>
-                        <div style="font-size:28px; font-weight:800;">Next Level: {next_level}</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-            with c2:
-                if st.button("Selesaikan Quest", use_container_width=True):
-                    try:
-                        mark_quest_done(st.session_state.user, str(selected["id"]))
-                        st.success("Quest berhasil diselesaikan.")
-                        st.session_state.selected_quest_id = None
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Gagal menyelesaikan quest: {e}")
-
-
-# =====================
-# BTS - HISTORY
-# =====================
-elif st.session_state.role == "BTS" and menu == "History":
-    st.markdown('<div class="section-title">History Quest</div>', unsafe_allow_html=True)
-
-    progress_df = get_progress_by_bts(st.session_state.user)
-    if progress_df.empty:
-        st.info("Belum ada history quest.")
-    else:
-        done_df = progress_df[progress_df["status"] == "done"].copy()
-        if done_df.empty:
-            st.info("Belum ada quest yang selesai.")
-        else:
-            quests_df = get_quests()
-            if not quests_df.empty:
-                merged = done_df.merge(
-                    quests_df[["id", "title", "description", "difficulty"]],
-                    left_on="quest_id",
-                    right_on="id",
-                    how="left",
-                )
-            else:
-                merged = done_df
-
-            for _, row in merged.iterrows():
-                title = row.get("title", "Quest")
-                desc = row.get("description", "-")
-                diff = row.get("difficulty", "-")
-                completed_at = row.get("completed_at", "-")
-
-                st.markdown(
-                    f"""
-                    <div class="card">
-                        <div class="quest-title">{title}</div>
-                        <div class="soft-text">{desc}</div>
-                        <div class="soft-text" style="margin-top:10px;">Selesai: {completed_at}</div>
-                        <div style="margin-top:8px;">{difficulty_badge(diff)}</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-
-# =====================
-# MGR - DASHBOARD
-# =====================
-elif st.session_state.role == "MGR" and menu == "Dashboard MGR":
-    st.markdown('<div class="section-title">Dashboard MGR</div>', unsafe_allow_html=True)
-
-    left, right = st.columns([1.1, 1.4])
-
-    with left:
-        st.markdown("### Bikin Quest Baru")
-
-        title = st.text_input("Judul Tugas")
-        description = st.text_area("Deskripsi Tugas", height=180)
-        difficulty = st.selectbox("Difficulty", ["Easy", "Medium", "Hard"])
-
-        bts_df = get_bts()
-        target_options = ["all"]
-        if not bts_df.empty and "name" in bts_df.columns:
-            target_options.extend(bts_df["name"].tolist())
-
-        target = st.selectbox("Quest Untuk", target_options)
-
-        if st.button("Buat Quest Baru", use_container_width=True):
-            if not title.strip() or not description.strip():
-                st.warning("Judul dan deskripsi wajib diisi.")
-            else:
-                try:
-                    supabase.table("quests").insert(
-                        {
-                            "title": title.strip(),
-                            "description": description.strip(),
-                            "difficulty": difficulty,
-                            "reward": 1,
-                            "target": target,
-                        }
-                    ).execute()
-                    st.success("Quest berhasil dibuat.")
+            proof_link = st.text_input(
+                f"Link screenshot proof #{quest['id']}",
+                value=existing_proof,
+                key=f"proof_{quest['id']}_{pic_name}",
+                placeholder="https://...",
+            )
+            if st.button("Simpan Update", key=f"save_{quest['id']}_{pic_name}"):
+                prev_status = quest["status"].get(pic_name, "Belum dikerjakan")
+                if new_status == "Selesai" and not proof_link.strip():
+                    st.error("Untuk menyelesaikan quest, link screenshot proof wajib diisi.")
+                else:
+                    quest["status"][pic_name] = new_status
+                    quest["proof_links"][pic_name] = proof_link.strip()
+                    if new_status == "Selesai" and prev_status != "Selesai":
+                        quest["completed_at"][pic_name] = datetime.now().isoformat(timespec="seconds")
+                        award_exp(pic, 100)
+                        st.success("Quest selesai. Kamu dapat +100 EXP / naik 1 level tiap 100 EXP.")
+                    elif new_status != "Selesai":
+                        quest["completed_at"][pic_name] = ""
+                    save_data(data)
                     st.rerun()
-                except Exception as e:
-                    st.error(f"Gagal membuat quest: {e}")
 
-        st.divider()
-        st.markdown("### Edit Nama BTS")
+    st.subheader("Performa Saya")
+    assigned = len(my_quests)
+    done = sum(1 for q in my_quests if q["status"].get(pic_name) == "Selesai")
+    pending = assigned - done
+    perf = pd.DataFrame(
+        {
+            "Status": ["Selesai", "Belum Selesai"],
+            "Jumlah": [done, pending],
+        }
+    )
+    st.dataframe(
+        pd.DataFrame(
+            [{
+                "Assigned Quest": assigned,
+                "Selesai": done,
+                "Belum Selesai": pending,
+                "Completion %": completion_percent(assigned, done),
+                "Level": pic["level"],
+                "EXP": pic["exp"],
+            }]
+        ),
+        use_container_width=True,
+    )
+    st.bar_chart(perf.set_index("Status"))
 
-        if bts_df.empty:
-            st.info("Belum ada BTS.")
+
+
+def main():
+    st.set_page_config(page_title=APP_NAME, page_icon="📌", layout="wide")
+    st.title(APP_NAME)
+    st.caption("Dashboard tugas dengan sistem quest, notifikasi, proof screenshot, dan performa PIC.")
+
+    data = load_data()
+
+    with st.sidebar:
+        st.header("Akses")
+        role = st.radio("Pilih role", ["Admin", "PIC"], horizontal=False)
+        if role == "Admin":
+            password = st.text_input("Password Admin", type="password")
+            if password != ADMIN_PASSWORD:
+                st.warning("Masukkan password admin untuk membuka panel.")
+                st.info("Password default: admin123")
+                return
+            admin_view(data)
         else:
-            selected_bts = st.selectbox("Pilih BTS", bts_df["name"].tolist())
-            new_name = st.text_input("Nama Baru BTS")
+            pic_name = st.selectbox("Pilih PIC", DEFAULT_PICS)
+            pic_view(data, pic_name)
 
-            if st.button("Update Nama BTS", use_container_width=True):
-                try:
-                    rename_bts(selected_bts, new_name)
-                    st.success("Nama BTS berhasil diupdate.")
-                    st.rerun()
-                except Exception as e:
-                    st.error(str(e))
-
-    with right:
-        st.markdown("### Preview Quest")
-
-        preview_title = title.strip() if title.strip() else "Belum diisi"
-        preview_desc = description.strip() if description.strip() else "Deskripsi quest akan tampil di sini."
-        preview_target = "Semua BTS" if target == "all" else target
-
-        st.markdown(
-            f"""
-            <div class="card">
-                <div class="section-title" style="margin-bottom:8px;">Dashboard MGR</div>
-                <div class="soft-text" style="font-size:20px; margin-bottom:22px;">
-                    Buat quest baru lalu tentukan apakah quest diberikan untuk semua BTS atau BTS tertentu.
-                </div>
-
-                <div class="card">
-                    <div class="soft-text">Judul Quest</div>
-                    <div style="font-size:28px; font-weight:800;">{preview_title}</div>
-                </div>
-
-                <div class="card">
-                    <div class="soft-text">Target BTS</div>
-                    <div style="font-size:24px; font-weight:700;">{preview_target}</div>
-                </div>
-
-                <div class="card">
-                    <div class="soft-text">Preview Deskripsi</div>
-                    <div style="font-size:20px; line-height:1.7;">{preview_desc}</div>
-                    <div style="margin-top:12px;">{difficulty_badge(difficulty)}</div>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        st.markdown("### Summary Performa Semua BTS")
-
-        if bts_df.empty:
-            st.info("Belum ada data BTS.")
-        else:
-            for _, bts_row in bts_df.iterrows():
-                name = bts_row["name"]
-                progress_df = get_progress_by_bts(name)
-
-                total = len(progress_df)
-                done = len(progress_df[progress_df["status"] == "done"]) if not progress_df.empty else 0
-                pending = max(total - done, 0)
-                percent = int((done / total) * 100) if total > 0 else 0
-                level = calculate_level(done)
-
-                st.markdown(
-                    f"""
-                    <div class="card">
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <div style="font-size:28px; font-weight:800;">{name}</div>
-                            <div>{level_badge(level) if False else f'<span class="badge badge-medium">Level {level}</span>'}</div>
-                        </div>
-                        <div class="soft-text" style="margin-top:10px;">
-                            Diberikan: {total} &nbsp; | &nbsp; Selesai: {done} &nbsp; | &nbsp; Belum: {pending} &nbsp; | &nbsp; Persentase: {percent}%
-                        </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
+    st.sidebar.markdown("---")
+    st.sidebar.write("**PIC aktif:**")
+    for pic in DEFAULT_PICS:
+        st.sidebar.write(f"- {pic}")
 
 
-# =====================
-# VIOLATION
-# =====================
-elif menu == "Violation":
-    st.markdown('<div class="section-title">Violation</div>', unsafe_allow_html=True)
-    st.info("Coming Soon")
+if __name__ == "__main__":
+    main()
