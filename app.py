@@ -5,8 +5,8 @@ from pathlib import Path
 
 import streamlit as st
 
-DATA_DIR = Path('/mnt/data/task_quest_app_data')
-DATA_DIR.mkdir(exist_ok=True)
+DATA_DIR = Path("data")
+DATA_DIR.mkdir(parents=True, exist_ok=True)
 QUESTS_FILE = DATA_DIR / 'quests.json'
 USERS_FILE = DATA_DIR / 'users.json'
 
